@@ -35,6 +35,7 @@ pretex = pretex1+pretex2+pretex3
 # END user config
 ###################################################################
 
+
 try:
     import notebook.notebookapp
     static_file_path = notebook.notebookapp.DEFAULT_STATIC_FILES_PATH
@@ -128,16 +129,22 @@ class SPAD(Kernel):
 
         #----------------------------------------------------------
         cmd = ')!'
+        from base64 import b64decode, b64encode 
         if code.startswith(cmd):
             # Shell code in cell
             global shell_result
             cmd = str(code[len(cmd):].lstrip())
             cp = run(cmd, stdout=PIPE, stderr=STDOUT,
                           timeout=shell_timeout, shell=True)
-            self.output = cp.stdout.decode()
-            self.send_response(self.iopub_socket, 'stream',
-                               {'name': 'stdout', 'text': self.output})
-
+            #self.output = cp.stdout.decode()
+            if cp.stdout[0:8] == b'\x89PNG\r\n\x1a\n':
+              self.send_response(self.iopub_socket, 'display_data',
+                {'data': {'image/png' : b64encode(cp.stdout)},'metadata': {}})
+              return ok_status
+            else:
+              self.output = cp.stdout.decode()
+              self.send_response(self.iopub_socket, 'stream',
+              	  {'name': 'stdout', 'text': self.output})
             # Store last shell result in global python variable
             shell_result = self.output
 
@@ -381,6 +388,10 @@ class SPAD(Kernel):
             elif line.startswith('scheme: '):  # Corresponds to TexmacsFormat
                 f = 'TexmacsFormat'
                 end_marker = ')'
+            elif line.startswith('<!DOCTYPE HTML>') or  line.startswith('<html>'):
+            	f = 'HTMLFormat'
+            	content_type = 'text/html'
+            	end_marker = '</html>'
             else:
                 outputs.append({'ERROR': line + '\n'})
                 continue
@@ -497,15 +508,15 @@ if __name__ == '__main__':
     # --------------------------------
     # Uncomment or edit as you like.
     # Default:
-    pid = Popen(['fricas','-eval',prereq,'-eval',start])
+    
+    #>>>pid = Popen(['fricas','-eval',prereq,'-eval',start])
 
     # Start the FriCAS process in a separate terminal.
     # That might be good for controlling FriCAS directly in case
     # the Jupyter interface hangs or a process runs too long.
     # Of course, the start-fricas-in-terminal way also works
     # with additional fricas options.
-    ## pid = Popen(['gnome-terminal', '--title=jfricas', '--'] +
-    ##             ['fricas','-eval',prereq,'-eval',start])
+    pid = Popen(['xterm','-e','fricas','-eval',prereq,'-eval',start])
 
     # Start the FriCAS process without opening the HyperDoc window.
     ## pid = Popen(['fricas','-eval',prereq,'-eval',start] +
@@ -520,4 +531,8 @@ if __name__ == '__main__':
     # does.
 
     # Start the kernel.
+    print("Launching the kernel .................")
+    import time
+    time.sleep(2)
     IPKernelApp.launch_instance(kernel_class=SPAD)
+    
