@@ -2,6 +2,10 @@
 # https://jfricas.readthedocs.io
 # https://github.com/fricas/jfricas.
 
+# Changes 29042021
+# +png in )!
+# +ipysh (-- )ipysh )mplot --)
+
 ###################################################################
 # This file is one part of the FriCAS to Jupyter notebook bridge. It
 # implements an IPython kernel such that pressing SHIFT-ENTER in a
@@ -34,6 +38,38 @@ pretex = pretex1+pretex2+pretex3
 ###################################################################
 # END user config
 ###################################################################
+
+#+ipyshell
+from IPython.core.interactiveshell import InteractiveShell
+
+ipyshell = InteractiveShell()
+
+ipysh = ')ipysh'
+mplot = ')mplot'
+
+init = """
+import matplotlib.pyplot as plt
+import numpy as np
+from io import BytesIO
+import urllib, base64
+
+def _to_png(fig):
+    imgdata = BytesIO()
+    fig.savefig(imgdata, format='png')
+    imgdata.seek(0)
+    return urllib.parse.quote(
+        base64.b64encode(imgdata.getvalue()))
+
+def show(fig): return(_to_png(fig))
+"""
+
+ipyshell.run_cell(init)
+ipyshell_version = '1.0'
+#-ipyshell
+
+
+
+
 
 
 try:
@@ -153,6 +189,35 @@ class SPAD(Kernel):
             s = shell_result_fricas.format(s.replace('\n', '",_\n"'))
             self.server.put(s)
 
+            return ok_status
+
+        #----------------------------------------------------------
+        cmd = ')mplot'
+        if code.startswith(mplot):
+            ipycmd = code[len(mplot):]
+            ipyres = ipyshell.run_cell(ipycmd, False)
+            if not ipyres.success:
+               self.send_response(self.iopub_socket, 'stream',
+                 {'name': 'stderr', 'text': repr(ipyres.error_in_exec)})
+               return ok_status
+            mpdata = dict()
+            mpdata['image/png'] = ipyres.result
+            display_data = {'data':mpdata, 'metadata':{}}
+            self.send_response(self.iopub_socket, 'display_data', display_data) 
+            return ok_status
+            
+        #----------------------------------------------------------
+        cmd = ')ipysh'
+        if code.startswith(ipysh):
+            ipycmd = code[len(ipysh):]
+            ipyres = ipyshell.run_cell(ipycmd, False)
+            if not ipyres.success:
+                self.send_response(self.iopub_socket, 'stream',
+                  {'name': 'stderr', 'text': repr(ipyres.error_in_exec)})
+                return ok_status
+            self.output = repr(ipyres.result)
+            self.send_response(self.iopub_socket, 'stream',
+              {'name': 'stdout', 'text': self.output})
             return ok_status
 
         #----------------------------------------------------------
