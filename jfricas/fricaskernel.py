@@ -453,10 +453,6 @@ class SPAD(Kernel):
             elif line.startswith('scheme: '):  # Corresponds to TexmacsFormat
                 f = 'TexmacsFormat'
                 end_marker = ')'
-            elif line.startswith('<!DOCTYPE HTML>') or  line.startswith('<html>'):
-            	f = 'HTMLFormat'
-            	content_type = 'text/html'
-            	end_marker = '</html>'
             else:
                 outputs.append({'ERROR': line + '\n'})
                 continue
